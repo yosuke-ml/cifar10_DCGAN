@@ -1,6 +1,6 @@
-from keras.models import Model
 from keras.models import Sequential
-from keras.layers import Input, Flatten, Dense, Conv2D, UpSampling2D, MaxPooling2D, Reshape
+from keras.layers import Flatten, Dense, Conv2D, UpSampling2D, MaxPooling2D, Reshape
+from keras.layers.core import Activation
 from keras.layers.normalization import BatchNormalization
 from keras.optimizers import Adam
 
@@ -25,74 +25,43 @@ def main():
 
 #Discreminatorモデル（VGG16をFineTuning）
 def D_model(Height, Width, channel=3):
-#    #Inputサイズを指定
-#    input_tensor = Input(shape=(image_size, image_size, 3))
-#
-#    #VGG16の読み込み（全結合層なし、ImageNetで学習した重み使用、Inputサイズ指定)
-#    base_model = VGG16(
-#            include_top = False,
-#            weights = "imagenet",
-#            input_tensor=input_tensor
-#            )
-#    
-#    #VGG16の図の緑色の部分（FC層）の作成
-#    top_model = Sequential()
-#    top_model.add(Flatten(input_shape=base_model.output_shape[1:]))
-#    top_model.add(Dense(256, activation='relu'))
-#    top_model.add(Dropout(0.5))
-#    top_model.add(Dense(1, activation='sigmoid'))
-#    
-#    #VGG16とFC層を結合してモデルを作成
-#    model = Model(inputs=base_model.input, outputs=top_model(base_model.output), name='D')
-
-    inputs = Input((Height, Width, channel))
-
-    x = Conv2D(64, (5, 5), padding='same', activation='tanh', name='d_conv1')(inputs)
-    x = MaxPooling2D(pool_size=(2, 2))(x)
-    x = Conv2D(128, (5, 5), padding='same', activation='tanh', name='d_conv2')(x)
-    x = MaxPooling2D(pool_size=(2, 2))(x)
-    x = Flatten()(x)
-    x = Dense(1024, activation='relu', name='d_dense1')(x)
-    x = Dense(1, activation='sigmoid', name='d_out')(x)
-    model = Model(inputs, x, name='D')
+    model = Sequential()
+    model.add(
+            Conv2D(64, (5, 5),
+            padding='same',
+            input_shape=(Height, Width, 3))
+            )
+    model.add(Activation('tanh'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Conv2D(128, (5, 5)))
+    model.add(Activation('tanh'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Flatten())
+    model.add(Dense(1024))
+    model.add(Activation('tanh'))
+    model.add(Dense(1))
+    model.add(Activation('sigmoid'))
     
     return model
 
 #Generatorモデル
 def G_model(Height, Width, channel=3):
-#    noise_shape = (100,)
-#    
-#    model = Sequential()
-#    model.add(Dense(4 * 4 * 1024, input_shape=noise_shape))
-#    model.add(BatchNormalization())
-#    model.add(ELU())
-#    model.add(Reshape((4, 4, 1024)))
-#    
-#    model.add(Conv2DTranspose(512, (5, 5), padding='same', strides=(2, 2)))
-#    model.add(BatchNormalization())
-#    model.add(ELU())
-#
-#    model.add(Conv2DTranspose(256, (5, 5), padding='same', strides=(2, 2)))
-#    model.add(BatchNormalization())
-#    model.add(ELU())
-#
-#    model.add(Conv2DTranspose(3, (5, 5), padding='same', strides=(2, 2), activation='tanh'))
-#    
-#    model = Model(model.input, model.output, name='G')
-
-    inputs = Input((100,))
-    
     in_h = int(Height / 4)
     in_w = int(Width / 4)
     
-    x = Dense(in_h * in_w * 128, activation='tanh', name='g_dense1')(inputs)
-    x = BatchNormalization()(x)
-    x = Reshape((in_h, in_w, 128), input_shape=(128 * in_h * in_w,))(x)
-    x = UpSampling2D(size=(2, 2))(x)
-    x = Conv2D(64, (5, 5), padding='same', activation='tanh', name='g_conv1')(x)
-    x = UpSampling2D(size=(2, 2))(x)
-    x = Conv2D(channel, (5, 5), padding='same', activation='tanh', name='g_out')(x)
-    model = Model(inputs, x, name='G')
+    model = Sequential()
+    model.add(Dense(input_dim=100, output_dim=1024))
+    model.add(Activation('tanh'))
+    model.add(Dense(128 * in_h * in_w))
+    model.add(BatchNormalization())
+    model.add(Activation('tanh'))
+    model.add(Reshape((in_h, in_w, 128), input_shape=(128 * in_h * in_w,)))
+    model.add(UpSampling2D(size=(2, 2)))
+    model.add(Conv2D(64, (5, 5), padding='same'))
+    model.add(Activation('tanh'))
+    model.add(UpSampling2D(size=(2, 2)))
+    model.add(Conv2D(3, (5, 5), padding='same'))
+    model.add(Activation('tanh'))
     
     return model    
 
@@ -139,7 +108,7 @@ def train(BATCH_SIZE):
     d_model.trainable = True
     d_model.compile(loss='binary_crossentropy', optimizer=d_opt)
     
-    for epoch in range(50):
+    for epoch in range(5000):
         print("Epoch is ", epoch)
         print("Number of batches ", int(X_train.shape[0] / BATCH_SIZE))
         
@@ -154,8 +123,8 @@ def train(BATCH_SIZE):
                 Image.fromarray(image.astype(np.uint8)).save(
                         str(epoch) + "_" + str(index) + ".png")
             
-#            print(image_batch.shape)
-#            print(generated_images.shape)
+            #print(image_batch.shape)
+            #print(generated_images.shape)
             X = np.concatenate((image_batch, generated_images))
             y = [1] * BATCH_SIZE + [0] * BATCH_SIZE
             d_loss = d_model.train_on_batch(X, y)

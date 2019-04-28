@@ -112,7 +112,7 @@ def train(BATCH_SIZE):
     d_model.trainable = True
     d_model.compile(loss='binary_crossentropy', optimizer=d_opt)
     
-    for epoch in range(50):
+    for epoch in range(5000):
         print("Epoch is ", epoch)
         print("Number of batches ", int(X_train.shape[0] / BATCH_SIZE))
         
